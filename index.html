@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+
+<meta name="viewport"
+content="width=device-width, initial-scale=1, viewport-fit=cover">
+
+<title>Калькулятор топливной смеси</title>
+
+<link rel="icon" type="image/png" href="favicon.png">
+
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+
+<link rel="manifest" href="manifest.json">
+
+<meta name="theme-color" content="#111111">
+
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="FMC">
+<meta name="mobile-web-app-capable" content="yes">
+
+<style>
+
+body{
+    font-family: Arial;
+    background:#111;
+    color:#fff;
+    margin:0;
+    padding:16px;
+}
+
+.box{
+    max-width:480px;
+    margin:0 auto;
+    background:#1b1b1b;
+    padding:20px;
+    border-radius:16px;
+}
+
+h1{
+    text-align:center;
+    margin-bottom:20px;
+}
+
+.mode{
+    display:flex;
+    gap:10px;
+    margin-bottom:20px;
+}
+
+.mode button{
+    flex:1;
+    padding:12px;
+    border:none;
+    border-radius:12px;
+    background:#2a2a2a;
+    color:#fff;
+    font-size:15px;
+    cursor:pointer;
+}
+
+.mode button.active{
+    background:#00c853;
+}
+
+label{
+    display:block;
+    margin-top:12px;
+    margin-bottom:6px;
+}
+
+input,select{
+    width:100%;
+    padding:14px;
+    border-radius:12px;
+    border:none;
+    background:#2a2a2a;
+    color:#fff;
+    font-size:16px;
+    box-sizing:border-box;
+}
+
+.result{
+    margin-top:20px;
+    padding:15px;
+    background:#262626;
+    border-radius:12px;
+    line-height:1.7;
+}
+
+.highlight{
+    color:#00e676;
+    font-weight:bold;
+}
+
+.small{
+    opacity:0.7;
+    font-size:13px;
+    margin-top:6px;
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="box">
+
+<h1>Калькулятор топливной смеси</h1>
+
+<div class="mode">
+
+<button
+id="currentBtn"
+class="active"
+onclick="setMode('current')">
+
+Частичная заправка
+
+</button>
+
+<button
+id="fullBtn"
+onclick="setMode('full')">
+
+До полного бака
+
+</button>
+
+<button
+id="topupBtn"
+onclick="setMode('topup')">
+
+Долив смеси
+
+</button>
+
+</div>
+
+<label>Желаемая смесь</label>
+
+<select id="mix">
+
+<option value="5">E5</option>
+<option value="10">E10</option>
+<option value="15">E15</option>
+<option value="20">E20</option>
+<option value="25">E25</option>
+<option value="30">E30</option>
+<option value="35">E35</option>
+<option value="40">E40</option>
+<option value="45">E45</option>
+<option value="50">E50</option>
+<option value="55">E55</option>
+<option value="60">E60</option>
+<option value="65">E65</option>
+<option value="70">E70</option>
+<option value="75">E75</option>
+<option value="80">E80</option>
+<option value="85">E85</option>
+
+</select>
+
+<div class="small">
+E — нужный процент содержания спирта в смеси
+</div>
+
+<label>Тип спирта</label>
+
+<select id="alcoholType">
+
+<option value="1.045">
+Этиловый спирт 95–96%
+</option>
+
+<option value="1.31">
+Изопропиловый спирт 99.9%
+</option>
+
+</select>
+
+<div id="fuelBlock">
+
+<label>Бензина в баке (л)</label>
+
+<input
+id="fuel"
+type="text"
+inputmode="decimal"
+placeholder="Например 30">
+
+<div class="small">
+Спирт добавляется к уже имеющемуся бензину → общий объём увеличивается
+</div>
+
+</div>
+
+<div id="tankBlock" style="display:none;">
+
+<label>Объём бака (л)</label>
+
+<input
+id="tank"
+type="text"
+inputmode="decimal"
+placeholder="Например 65">
+
+<div class="small">
+Сначала заливается спирт, затем бак доливается бензином до полного
+</div>
+
+</div>
+
+<div id="topupBlock" style="display:none;">
+
+<label>Смесь в баке сейчас</label>
+
+<select id="currentMix"></select>
+
+<label>Смеси в баке сейчас (л)</label>
+
+<input
+id="currentVolume"
+type="text"
+inputmode="decimal"
+placeholder="Например 20">
+
+<label>Нужно получить всего (л)</label>
+
+<input
+id="targetVolume"
+type="text"
+inputmode="decimal"
+placeholder="Например 55">
+
+<div class="small">
+К смеси в баке доливаются спирт и бензин → объём растёт, получается желаемая смесь. Смесь в баке должна быть на том же спирте
+</div>
+
+</div>
+
+<div class="result" id="res">
+Введите данные
+</div>
+
+</div>
+
+<script>
+
+let mode = 'current';
+
+function n(v){
+    return parseFloat((v || '').replace(',', '.'));
+}
+
+const mix = document.getElementById('mix');
+const fuel = document.getElementById('fuel');
+const tank = document.getElementById('tank');
+const alcoholType = document.getElementById('alcoholType');
+const currentMix = document.getElementById('currentMix');
+const currentVolume = document.getElementById('currentVolume');
+const targetVolume = document.getElementById('targetVolume');
+
+// тот же список смесей, что и в "Желаемая смесь"
+currentMix.innerHTML = mix.innerHTML;
+
+mix.addEventListener('change', calc);
+fuel.addEventListener('input', calc);
+tank.addEventListener('input', calc);
+alcoholType.addEventListener('change', calc);
+currentMix.addEventListener('change', calc);
+currentVolume.addEventListener('input', calc);
+targetVolume.addEventListener('input', calc);
+
+// вкладка → её кнопка и блок полей
+const modes = {
+    current: { btn: 'currentBtn', block: 'fuelBlock' },
+    full: { btn: 'fullBtn', block: 'tankBlock' },
+    topup: { btn: 'topupBtn', block: 'topupBlock' }
+};
+
+function setMode(selected){
+
+    mode = selected;
+
+    Object.keys(modes).forEach(function(key){
+
+        const isActive = key === mode;
+
+        document
+        .getElementById(modes[key].btn)
+        .classList
+        .toggle('active', isActive);
+
+        document
+        .getElementById(modes[key].block)
+        .style
+        .display = isActive ? 'block' : 'none';
+    });
+
+    calc();
+}
+
+function calc(){
+
+    const e = n(mix.value);
+    const k = n(alcoholType.value);
+
+    // При K * E > 100 спирта нужно больше, чем объём смеси, —
+    // подсказываем наибольшую смесь из списка, которая ещё достижима
+    const maxMix = Math.max.apply(null,
+        Array.from(mix.options)
+        .map(function(option){ return n(option.value); })
+        .filter(function(value){ return k * value < 100; })
+    );
+
+    if(mode === 'topup'){
+
+        calcTopUp(e, k, maxMix);
+
+        return;
+    }
+
+    if(mode === 'current'){
+
+        const gasoline = n(fuel.value);
+
+        if(!(gasoline > 0)){
+
+            document.getElementById('res').innerHTML =
+            'Введите количество бензина';
+
+            return;
+        }
+
+        if(k * e >= 100){
+
+            document.getElementById('res').innerHTML =
+            'С этим спиртом смесь E' + e + ' недостижима.<br>' +
+            'Максимум — E' + maxMix;
+
+            return;
+        }
+
+        // Та же формула 2, где объём смеси = Vспирта + Vбензина:
+        // Vспирта = K * E/100 * (Vспирта + Vбензина)
+        // => Vспирта = (K * E * Vбензина) / (100 - K * E)
+
+        const alcohol =
+        (k * e * gasoline) / (100 - k * e);
+
+        const total =
+        gasoline + alcohol;
+
+        document.getElementById('res').innerHTML =
+
+        'Нужно добавить:<br><span class="highlight">' +
+        alcohol.toFixed(2) +
+        ' л спирта</span><br><br>' +
+
+        'Бензина в баке:<br><span class="highlight">' +
+        gasoline.toFixed(2) +
+        ' л</span><br><br>' +
+
+        'Общий объём смеси:<br><span class="highlight">' +
+        total.toFixed(2) +
+        ' л</span><br><br>' +
+
+        'Получится смесь:<br><span class="highlight">E' +
+        e +
+        '</span>';
+    }
+
+    else{
+
+        const tankVolume = n(tank.value);
+
+        if(!(tankVolume > 0)){
+
+            document.getElementById('res').innerHTML =
+            'Введите объём бака';
+
+            return;
+        }
+
+        if(k * e > 100){
+
+            document.getElementById('res').innerHTML =
+            'С этим спиртом смесь E' + e + ' недостижима.<br>' +
+            'Максимум — E' + maxMix;
+
+            return;
+        }
+
+        // Vспирта = K * E/100 * Vбака
+
+        const alcohol =
+        k * (e / 100) * tankVolume;
+
+        const gasoline =
+        tankVolume - alcohol;
+
+        document.getElementById('res').innerHTML =
+
+        'Нужно залить:<br><span class="highlight">' +
+        alcohol.toFixed(2) +
+        ' л спирта</span><br><br>' +
+
+        'И долить:<br><span class="highlight">' +
+        gasoline.toFixed(2) +
+        ' л бензина</span><br><br>' +
+
+        'Итоговый объём смеси:<br><span class="highlight">' +
+        tankVolume.toFixed(2) +
+        ' л</span><br><br>' +
+
+        'Получится смесь:<br><span class="highlight">E' +
+        e +
+        '</span>';
+    }
+}
+
+// погрешность округления, чтобы 0 не превращался в -0.0000001
+const EPS = 1e-9;
+
+function calcTopUp(e, k, maxMix){
+
+    const res = document.getElementById('res');
+
+    const e0 = n(currentMix.value);
+    const v0 = n(currentVolume.value);
+    const vt = n(targetVolume.value);
+
+    if(!(v0 > 0)){
+
+        res.innerHTML = 'Введите, сколько смеси в баке';
+
+        return;
+    }
+
+    if(!(vt > v0)){
+
+        res.innerHTML = 'Итоговый объём должен быть больше, чем уже в баке';
+
+        return;
+    }
+
+    if(k * e > 100){
+
+        res.innerHTML =
+        'С этим спиртом смесь E' + e + ' недостижима.<br>' +
+        'Максимум — E' + maxMix;
+
+        return;
+    }
+
+    if(k * e0 > 100){
+
+        res.innerHTML =
+        'С этим спиртом в баке не может быть E' + e0;
+
+        return;
+    }
+
+    // По формуле 2 спирта в смеси = K * E/100 * Vсмеси.
+    // Доливаем разницу между нужным в итоговом объёме и тем, что уже в баке:
+    // Vспирта = K * (E * Vитог - E0 * Vбак) / 100
+
+    const alcohol =
+    k * (e * vt - e0 * v0) / 100;
+
+    const gasoline =
+    (vt - v0) - alcohol;
+
+    if(alcohol < -EPS){
+
+        res.innerHTML =
+        'В баке слишком много спирта для E' + e + '.<br>' +
+        'Даже доливая только бензин, получится E' +
+        (e0 * v0 / vt).toFixed(1) + '.<br>' +
+        'Для E' + e + ' нужно всего не меньше ' +
+        (e0 * v0 / e).toFixed(2) + ' л';
+
+        return;
+    }
+
+    if(gasoline < -EPS){
+
+        res.innerHTML =
+        'Для E' + e + ' доливаемого объёма мало.<br>' +
+        'Даже доливая только спирт, получится E' +
+        (e0 * v0 / vt + 100 * (vt - v0) / (k * vt)).toFixed(1);
+
+        return;
+    }
+
+    res.innerHTML =
+
+    'Нужно долить:<br><span class="highlight">' +
+    Math.max(alcohol, 0).toFixed(2) +
+    ' л спирта</span><br><br>' +
+
+    'И долить:<br><span class="highlight">' +
+    Math.max(gasoline, 0).toFixed(2) +
+    ' л бензина</span><br><br>' +
+
+    'Итоговый объём смеси:<br><span class="highlight">' +
+    vt.toFixed(2) +
+    ' л</span><br><br>' +
+
+    'Получится смесь:<br><span class="highlight">E' +
+    e +
+    '</span>';
+}
+
+// Service worker работает только по http(s) — при открытии файла с диска пропускаем
+if('serviceWorker' in navigator && location.protocol.startsWith('http')){
+    navigator.serviceWorker.register('sw.js');
+}
+
+</script>
+
+</body>
+</html>
