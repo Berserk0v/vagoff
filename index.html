@@ -235,8 +235,17 @@ type="text"
 inputmode="decimal"
 placeholder="Например 55">
 
+<label>Спирта хочу залить (л)</label>
+
+<input
+id="plannedAlcohol"
+type="text"
+inputmode="decimal"
+placeholder="Необязательно, например 20">
+
 <div class="small">
-К смеси в баке доливаются спирт и бензин → объём растёт, получается желаемая смесь. Смесь в баке должна быть на том же спирте
+К смеси в баке доливаются спирт и бензин → объём растёт, получается желаемая смесь. Смесь в баке должна быть на том же спирте.<br>
+Если указать, сколько спирта хотите залить, — посчитаю бензин под него, а «Нужно получить всего» будет пределом бака
 </div>
 
 </div>
@@ -262,6 +271,7 @@ const alcoholType = document.getElementById('alcoholType');
 const currentMix = document.getElementById('currentMix');
 const currentVolume = document.getElementById('currentVolume');
 const targetVolume = document.getElementById('targetVolume');
+const plannedAlcohol = document.getElementById('plannedAlcohol');
 
 // тот же список смесей, что и в "Желаемая смесь"
 currentMix.innerHTML = mix.innerHTML;
@@ -273,6 +283,7 @@ alcoholType.addEventListener('change', calc);
 currentMix.addEventListener('change', calc);
 currentVolume.addEventListener('input', calc);
 targetVolume.addEventListener('input', calc);
+plannedAlcohol.addEventListener('input', calc);
 
 // вкладка → её кнопка и блок полей
 const modes = {
@@ -440,13 +451,6 @@ function calcTopUp(e, k, maxMix){
         return;
     }
 
-    if(!(vt > v0)){
-
-        res.innerHTML = 'Итоговый объём должен быть больше, чем уже в баке';
-
-        return;
-    }
-
     if(k * e > 100){
 
         res.innerHTML =
@@ -463,6 +467,26 @@ function calcTopUp(e, k, maxMix){
 
         return;
     }
+
+    // указано, сколько спирта хотим залить, — считаем бензин под него
+    if(plannedAlcohol.value.trim() !== ''){
+
+        topUpByAlcohol(res, e, k, e0, v0, vt);
+
+        return;
+    }
+
+    if(!(vt > v0)){
+
+        res.innerHTML = 'Итоговый объём должен быть больше, чем уже в баке';
+
+        return;
+    }
+
+    topUpByVolume(res, e, k, e0, v0, vt);
+}
+
+function topUpByVolume(res, e, k, e0, v0, vt){
 
     // По формуле 2 спирта в смеси = K * E/100 * Vсмеси.
     // Доливаем разницу между нужным в итоговом объёме и тем, что уже в баке:
@@ -496,6 +520,63 @@ function calcTopUp(e, k, maxMix){
         return;
     }
 
+    showTopUp(res, alcohol, gasoline, vt, e);
+}
+
+function topUpByAlcohol(res, e, k, e0, v0, vt){
+
+    const alcohol = n(plannedAlcohol.value);
+
+    if(!(alcohol > 0)){
+
+        res.innerHTML = 'Введите, сколько спирта хотите залить';
+
+        return;
+    }
+
+    // Спирта в итоге = уже в баке + доливаемый.
+    // По формуле 2 смесь E с этим спиртом занимает:
+    // Vсмеси = спирт / (K * E/100), остальное добираем бензином
+
+    const totalAlcohol =
+    k * e0 / 100 * v0 + alcohol;
+
+    const total =
+    totalAlcohol / (k * e / 100);
+
+    const gasoline =
+    total - v0 - alcohol;
+
+    if(gasoline < -EPS){
+
+        res.innerHTML =
+        'Спирта мало для E' + e + '.<br>' +
+        'Даже без бензина получится E' +
+        (100 * totalAlcohol / (k * (v0 + alcohol))).toFixed(1);
+
+        return;
+    }
+
+    // "Нужно получить всего" здесь — предел бака:
+    // если не влезает, показываем расчёт на полный бак
+    if(vt > v0 && total > vt + EPS){
+
+        topUpByVolume(res, e, k, e0, v0, vt);
+
+        res.innerHTML =
+        'Столько спирта в ' + vt + ' л не поместится: смесь займёт ' +
+        total.toFixed(2) + ' л.<br>' +
+        'Расчёт на ' + vt + ' л:<br><br>' +
+        res.innerHTML;
+
+        return;
+    }
+
+    showTopUp(res, alcohol, gasoline, total, e);
+}
+
+function showTopUp(res, alcohol, gasoline, total, e){
+
     res.innerHTML =
 
     'Нужно долить:<br><span class="highlight">' +
@@ -507,7 +588,7 @@ function calcTopUp(e, k, maxMix){
     ' л бензина</span><br><br>' +
 
     'Итоговый объём смеси:<br><span class="highlight">' +
-    vt.toFixed(2) +
+    total.toFixed(2) +
     ' л</span><br><br>' +
 
     'Получится смесь:<br><span class="highlight">E' +
